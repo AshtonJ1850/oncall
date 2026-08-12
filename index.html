@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>On-Call Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e17;
+    --bg-grid:#0d1220;
+    --panel:#111827;
+    --panel-2:#161f33;
+    --line:#232f46;
+    --text:#eef1f8;
+    --muted:#8892a6;
+    --muted-2:#5c667c;
+    --amber:#f5b942;
+    --amber-dim:#3a2f16;
+    --cyan:#4fd3c4;
+    --cyan-dim:#12312e;
+    --violet:#b893f0;
+    --violet-dim:#291f3d;
+    --good:#5fd97c;
+    --radius:14px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 500px at 15% -10%, #101a2e 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #16112a 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding-bottom:64px;
+  }
+
+  .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; }
+
+  /* ---------- header ---------- */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:rgba(10,14,23,0.86);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    padding:18px 20px 16px;
+  }
+  .header-inner{
+    max-width:960px; margin:0 auto;
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:16px; flex-wrap:wrap;
+  }
+  .brand{ display:flex; flex-direction:column; gap:2px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.24em; text-transform:uppercase;
+    color:var(--muted-2);
+  }
+  .brand h1{
+    margin:0; font-size:22px; font-weight:700; letter-spacing:-.01em;
+  }
+  .clock{ text-align:right; }
+  .clock .date{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:15px; font-weight:600; color:var(--text);
+  }
+  .clock .time{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px; color:var(--muted); margin-top:2px;
+  }
+
+  main{ max-width:960px; margin:0 auto; padding:28px 20px 0; }
+
+  .intro{
+    color:var(--muted); font-size:13.5px; line-height:1.6;
+    max-width:60ch; margin:0 0 28px;
+  }
+
+  /* ---------- team panel ---------- */
+  .team{
+    background:linear-gradient(180deg, var(--panel) 0%, var(--panel) 100%);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    margin-bottom:20px;
+    overflow:hidden;
+  }
+  .team-head{
+    display:flex; align-items:center; gap:10px;
+    padding:16px 18px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  .dot{
+    width:9px; height:9px; border-radius:50%;
+    box-shadow:0 0 0 4px currentColor22, 0 0 10px 1px currentColor;
+    flex:none;
+  }
+  .team-head h2{
+    margin:0; font-size:16px; font-weight:600; letter-spacing:.01em;
+  }
+  .team-head .region{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; color:var(--muted-2); letter-spacing:.1em;
+    margin-left:auto; text-transform:uppercase;
+  }
+
+  .strip{
+    display:grid;
+    grid-template-columns:1fr 1.3fr 1fr;
+    gap:1px;
+    background:var(--line);
+  }
+  .cell{
+    background:var(--panel);
+    padding:16px 14px 18px;
+    display:flex; flex-direction:column; gap:6px;
+    min-height:108px;
+    justify-content:flex-start;
+  }
+  .cell .tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--muted-2);
+  }
+  .cell.now{
+    background:var(--panel-2);
+    position:relative;
+  }
+  .cell.now .tag{ color:var(--accent, var(--amber)); font-weight:600; }
+  .cell .name{
+    font-size:16px; font-weight:600; line-height:1.25;
+    color:var(--text);
+  }
+  .cell.now .name{
+    font-size:19px;
+    animation:flapIn .5s cubic-bezier(.2,.7,.3,1) both;
+    animation-delay:calc(var(--d, 0) * 90ms);
+  }
+  .cell .range{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px; color:var(--muted);
+  }
+  .cell .note{
+    margin-top:auto;
+    display:inline-block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px; letter-spacing:.04em;
+    padding:3px 7px; border-radius:5px;
+    background:color-mix(in srgb, var(--accent, var(--amber)) 18%, transparent);
+    color:var(--accent, var(--amber));
+    width:fit-content;
+  }
+  .cell.side{ opacity:.72; }
+  .cell.side .name{ font-size:14.5px; font-weight:500; }
+
+  @keyframes flapIn{
+    0%{ transform:rotateX(80deg); opacity:0; }
+    60%{ transform:rotateX(-8deg); opacity:1; }
+    100%{ transform:rotateX(0deg); opacity:1; }
+  }
+  .strip{ perspective:600px; }
+
+  /* ---------- toggle / full schedule ---------- */
+  .more-row{
+    padding:10px 18px 16px;
+  }
+  .more-btn{
+    width:100%;
+    background:transparent;
+    border:1px dashed var(--line);
+    color:var(--muted);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px; letter-spacing:.08em; text-transform:uppercase;
+    padding:9px 12px; border-radius:8px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .more-btn:hover{ border-color:var(--accent, var(--amber)); color:var(--text); background:rgba(255,255,255,0.02); }
+  .chev{ transition:transform .2s ease; }
+  .more-btn[aria-expanded="true"] .chev{ transform:rotate(180deg); }
+
+  .full-wrap{
+    max-height:0; overflow:hidden;
+    transition:max-height .35s ease;
+    border-top:1px solid var(--line);
+  }
+  .full-wrap.open{ max-height:2200px; }
+  .full-scroll{ max-height:420px; overflow-y:auto; }
+
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  thead th{
+    position:sticky; top:0;
+    background:var(--panel-2);
+    text-align:left; font-family:'IBM Plex Mono', monospace;
+    font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted-2);
+    padding:9px 12px; border-bottom:1px solid var(--line);
+  }
+  tbody td{
+    padding:8px 12px;
+    border-bottom:1px solid rgba(255,255,255,0.04);
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  tbody td.who{ font-family:'Space Grotesk', sans-serif; color:var(--text); font-weight:500; white-space:normal; }
+  tbody tr.current{ background:color-mix(in srgb, var(--accent, var(--amber)) 12%, transparent); }
+  tbody tr.current td{ color:var(--text); }
+  tbody td.notecol{ color:var(--accent, var(--amber)); }
+
+  footer{
+    max-width:960px; margin:32px auto 0; padding:0 20px;
+    color:var(--muted-2); font-size:11px; font-family:'IBM Plex Mono', monospace;
+    text-align:center;
+  }
+
+  @media (max-width:560px){
+    .strip{ grid-template-columns:1fr; }
+    .cell{ min-height:auto; padding:12px 16px; }
+    .cell.side{ padding:10px 16px; }
+    thead th, tbody td{ padding:7px 9px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <span class="eyebrow">Field Service · Rotation Status</span>
+      <h1>On-Call Board</h1>
+    </div>
+    <div class="clock">
+      <div class="date mono" id="clockDate">—</div>
+      <div class="time mono" id="clockTime">—</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <p class="intro">Live status for all three rotations. Each board shows who had it last, who has it right now, and who's up next. Tap <span class="mono">full schedule</span> on any team to see every week.</p>
+  <div id="teams"></div>
+</main>
+
+<footer>Rotations repeat automatically once the printed schedule runs out, following the same weekly pattern.</footer>
+
+<script>
+/* ===================== SCHEDULE DEFINITIONS ===================== */
+// Each team rotates on a fixed weekly (Friday→Friday) cadence starting
+// from a known first week. The pattern below reproduces each team's
+// printed 53-week schedule exactly, then repeats on a 53-week cycle
+// so the board keeps working indefinitely into the future.
+
+const DAY = 86400000;
+const CYCLE_WEEKS = 53;
+const CYCLE_MS = CYCLE_WEEKS * 7 * DAY;
+
+function parseDate(s){ // 'YYYY-MM-DD' -> local midnight Date
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function addDays(date, n){ return new Date(date.getTime() + n*DAY); }
+function fmt(date){
+  return date.toLocaleDateString('en-US', { month:'2-digit', day:'2-digit', year:'numeric' });
+}
+
+const TEAMS = [
+  {
+    key:'center',
+    label:'Center Team',
+    accentVar:'--amber',
+    base:'2026-08-07',
+    nameForWeek(i){
+      if(i===1) return 'Leann Langley';
+      if(i===2) return 'Jade Womble';
+      const cycle=['Ashton Jackson','Michael Austin','Delexio Bowling','Adam Sowa','Leann Langley'];
+      return cycle[(i-3)%5];
+    }
+  },
+  {
+    key:'raleigh',
+    label:'Raleigh Team',
+    accentVar:'--cyan',
+    base:'2026-08-07',
+    nameForWeek(i){
+      const cycle=['Patrick Hayes','Terance Bennekin','Alejandro Arias','Cornelius Beatty','Tyreck Williams','Matt Jones','Shawn Farmer','Derek Peaks','Richard Mitchell'];
+      return cycle[(i-1)%9];
+    }
+  },
+  {
+    key:'east',
+    label:'East Team',
+    accentVar:'--violet',
+    base:'2026-08-07',
+    nameForWeek(i){
+      const cycle=['Nicholas Pigg','Joshua Jordan','Caelib West'];
+      return cycle[(i-1)%3];
+    }
+  }
+];
+
+function noteForWeek(i){
+  if(i===13) return 'Halloween week';
+  if(i===20) return 'Christmas Eve week';
+  if(i===21) return 'Christmas week';
+  return null;
+}
+
+// Build the printed 53-week table (real calendar dates, first cycle only)
+function buildFullSchedule(team){
+  const base = parseDate(team.base);
+  const rows = [];
+  for(let i=1;i<=CYCLE_WEEKS;i++){
+    const start = addDays(base, (i-1)*7);
+    const end = addDays(start, 7);
+    rows.push({ week:i, start, end, name:team.nameForWeek(i), note:noteForWeek(i) });
+  }
+  return rows;
+}
+
+// Given any date (past or future), find which rotation week it falls in,
+// wrapping the 53-week cycle forward/backward indefinitely.
+function weekInfoAt(team, when){
+  const base = parseDate(team.base);
+  const rawDays = Math.floor((when.getTime() - base.getTime()) / DAY);
+  const cycleDays = CYCLE_WEEKS * 7;
+  const cycleIndex = Math.floor(rawDays / cycleDays);
+  const dayInCycle = rawDays - cycleIndex*cycleDays; // 0..370
+  const weekIdx = Math.floor(dayInCycle/7) + 1; // 1..53
+  const cycleStart = addDays(base, cycleIndex*cycleDays);
+  const start = addDays(cycleStart, (weekIdx-1)*7);
+  const end = addDays(start, 7);
+  return { week:weekIdx, start, end, name:team.nameForWeek(weekIdx), note:noteForWeek(weekIdx) };
+}
+
+function getPCN(team, today){
+  const current = weekInfoAt(team, today);
+  const prev = weekInfoAt(team, addDays(current.start, -1));
+  const next = weekInfoAt(team, addDays(current.end, 1));
+  return { prev, current, next };
+}
+
+/* ===================== RENDER ===================== */
+
+function cellHTML(kind, tagText, info){
+  const noteHtml = info.note ? `<span class="note">${info.note}</span>` : '';
+  return `
+    <div class="cell ${kind}">
+      <span class="tag">${tagText}</span>
+      <span class="name">${info.name}</span>
+      <span class="range mono">${fmt(info.start)} – ${fmt(info.end)}</span>
+      ${noteHtml}
+    </div>`;
+}
+
+function fullTableHTML(team, currentWeekNum){
+  const rows = buildFullSchedule(team);
+  const trs = rows.map(r => `
+    <tr class="${r.week===currentWeekNum ? 'current' : ''}">
+      <td>${r.week}</td>
+      <td>${fmt(r.start)}</td>
+      <td>${fmt(r.end)}</td>
+      <td class="who">${r.name}</td>
+      <td class="notecol">${r.note ? r.note : ''}</td>
+    </tr>`).join('');
+  return `
+    <div class="full-scroll">
+      <table>
+        <thead>
+          <tr><th>Wk</th><th>Start</th><th>End</th><th>On-Call</th><th>Notes</th></tr>
+        </thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderTeams(){
+  const today = new Date();
+  const container = document.getElementById('teams');
+  container.innerHTML = TEAMS.map((team, idx) => {
+    const { prev, current, next } = getPCN(team, today);
+    return `
+      <section class="team" style="--accent:var(${team.accentVar})">
+        <div class="team-head">
+          <span class="dot" style="color:var(${team.accentVar})"></span>
+          <h2>${team.label}</h2>
+          <span class="region mono">Week ${current.week} / ${CYCLE_WEEKS}</span>
+        </div>
+        <div class="strip">
+          ${cellHTML('side', 'Previous', prev)}
+          ${cellHTML('now', 'On call now', current).replace('<span class="name">', `<span class="name" style="--d:${idx}">`)}
+          ${cellHTML('side', 'Next', next)}
+        </div>
+        <div class="more-row">
+          <button class="more-btn" aria-expanded="false" data-team="${team.key}">
+            <span>Full schedule</span>
+            <svg class="chev" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.4"/></svg>
+          </button>
+        </div>
+        <div class="full-wrap" id="full-${team.key}">
+          ${fullTableHTML(team, current.week)}
+        </div>
+      </section>`;
+  }).join('');
+
+  container.querySelectorAll('.more-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.team;
+      const wrap = document.getElementById('full-'+key);
+      const open = wrap.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.querySelector('span').textContent = open ? 'Hide schedule' : 'Full schedule';
+    });
+  });
+}
+
+function renderClock(){
+  const now = new Date();
+  document.getElementById('clockDate').textContent = now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+  document.getElementById('clockTime').textContent = now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+}
+
+renderTeams();
+renderClock();
+setInterval(renderClock, 30000);
+</script>
+
+</body>
+</html>
