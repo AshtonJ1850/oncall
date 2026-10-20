@@ -248,95 +248,93 @@
   <div id="teams"></div>
 </main>
 
-<footer>Rotations repeat automatically once the printed schedule runs out, following the same weekly pattern.</footer>
+<footer>Rotations keep going automatically after the printed schedule ends.</footer>
 
 <script>
-/* ===================== SCHEDULE DEFINITIONS ===================== */
-// Each team rotates on a fixed weekly (Friday→Friday) cadence starting
-// from a known first week. The pattern below reproduces each team's
-// printed 53-week schedule exactly, then repeats on a 53-week cycle
-// so the board keeps working indefinitely into the future.
-
+/* ===================== SCHEDULES ===================== */
 const DAY = 86400000;
-const CYCLE_WEEKS = 53;
-const CYCLE_MS = CYCLE_WEEKS * 7 * DAY;
 
-function parseDate(s){ // 'YYYY-MM-DD' -> local midnight Date
-  const [y,m,d] = s.split('-').map(Number);
+function parseDate(str){ // 'YYYY-MM-DD' -> local midnight Date
+  const [y,m,d] = str.split('-').map(Number);
   return new Date(y, m-1, d);
 }
-function addDays(date, n){ return new Date(date.getTime() + n*DAY); }
+// Calendar-based date math so daylight-saving changes never shift a date
+function addDays(date, n){ return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n); }
+function dayNumber(date){ return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY); }
+function mod(a, m){ return ((a % m) + m) % m; }
 function fmt(date){
   return date.toLocaleDateString('en-US', { month:'2-digit', day:'2-digit', year:'numeric' });
 }
 
+const BASE = parseDate('2026-08-07');   // week 1 starts this Friday
+const BASE_DN = dayNumber(BASE);
+const PRINTED_WEEKS = 53;                // length of the printed schedules
+
+// Each team: who is on call for week n (n = 1, 2, 3 ... counting up forever).
+// Rotation changes are built in, and every rotation keeps repeating
+// automatically after the printed schedule ends.
 const TEAMS = [
   {
     key:'center',
     label:'Center Team',
     accentVar:'--amber',
-    base:'2026-08-07',
-    nameForWeek(i){
-      if(i===1) return 'Leann Langley';
-      if(i===2) return 'Jade Womble';
-      const cycle=['Ashton Jackson','Michael Austin','Delexio Bowling','Adam Sowa','Leann Langley'];
-      return cycle[(i-3)%5];
+    nameForWeek(n){
+      if(n < 17){ // original schedule (weeks 1-16 unchanged)
+        if(n === 1) return 'Leann Langley';
+        if(n === 2) return 'Jade Womble';
+        return ['Ashton Jackson','Michael Austin','Delexio Bowling','Adam Sowa','Leann Langley'][mod(n-3, 5)];
+      }
+      // Hayden Adams joins in week 17
+      return ['Hayden Adams','Leann Langley','Ashton Jackson','Michael Austin','Delexio Bowling','Adam Sowa'][mod(n-17, 6)];
     }
   },
   {
     key:'raleigh',
     label:'Raleigh Team',
     accentVar:'--cyan',
-    base:'2026-08-07',
-    nameForWeek(i){
-      const cycle=['Patrick Hayes','Terance Bennekin','Alejandro Arias','Cornelius Beatty','Tyreck Williams','Matt Jones','Shawn Farmer','Derek Peaks','Richard Mitchell'];
-      return cycle[(i-1)%9];
+    nameForWeek(n){
+      const original = ['Patrick Hayes','Terance Bennekin','Alejandro Arias','Cornelius Beatty','Tyreck Williams','Matt Jones','Shawn Farmer','Derek Peaks','Richard Mitchell'];
+      if(n < 19) return original[mod(n-1, 9)]; // weeks 1-18 unchanged
+      // Phillip Jason Martin joins week 19, Robert Jones week 20
+      return ['Phillip Jason Martin','Robert Jones'].concat(original)[mod(n-19, 11)];
     }
   },
   {
     key:'east',
     label:'East Team',
     accentVar:'--violet',
-    base:'2026-08-07',
-    nameForWeek(i){
-      const cycle=['Nicholas Pigg','Joshua Jordan','Caelib West'];
-      return cycle[(i-1)%3];
+    nameForWeek(n){
+      if(n < 11) return ['Nicholas Pigg','Joshua Jordan','Caelib West'][mod(n-1, 3)]; // weeks 1-10 unchanged
+      // Joshua Jordan removed, Christopher Hall added from week 11
+      return ['Caelib West','Nicholas Pigg','Christopher Hall'][mod(n-11, 3)];
     }
   }
 ];
 
-function noteForWeek(i){
-  if(i===13) return 'Halloween week';
-  if(i===20) return 'Christmas Eve week';
-  if(i===21) return 'Christmas week';
+function noteForWeek(n){
+  if(n === 13) return 'Halloween week';
+  if(n === 20) return 'Christmas Eve week';
+  if(n === 21) return 'Christmas week';
   return null;
 }
 
-// Build the printed 53-week table (real calendar dates, first cycle only)
-function buildFullSchedule(team){
-  const base = parseDate(team.base);
+// The printed schedule table (week 1 onward)
+function buildFullSchedule(team, count){
   const rows = [];
-  for(let i=1;i<=CYCLE_WEEKS;i++){
-    const start = addDays(base, (i-1)*7);
+  for(let n=1; n<=count; n++){
+    const start = addDays(BASE, (n-1)*7);
     const end = addDays(start, 7);
-    rows.push({ week:i, start, end, name:team.nameForWeek(i), note:noteForWeek(i) });
+    rows.push({ week:n, start, end, name:team.nameForWeek(n), note:noteForWeek(n) });
   }
   return rows;
 }
 
-// Given any date (past or future), find which rotation week it falls in,
-// wrapping the 53-week cycle forward/backward indefinitely.
+// Which rotation week does a given date fall in?
 function weekInfoAt(team, when){
-  const base = parseDate(team.base);
-  const rawDays = Math.floor((when.getTime() - base.getTime()) / DAY);
-  const cycleDays = CYCLE_WEEKS * 7;
-  const cycleIndex = Math.floor(rawDays / cycleDays);
-  const dayInCycle = rawDays - cycleIndex*cycleDays; // 0..370
-  const weekIdx = Math.floor(dayInCycle/7) + 1; // 1..53
-  const cycleStart = addDays(base, cycleIndex*cycleDays);
-  const start = addDays(cycleStart, (weekIdx-1)*7);
+  const n = Math.floor((dayNumber(when) - BASE_DN) / 7) + 1;
+  const start = addDays(BASE, (n-1)*7);
   const end = addDays(start, 7);
-  return { week:weekIdx, start, end, name:team.nameForWeek(weekIdx), note:noteForWeek(weekIdx) };
+  return { week:n, start, end, name:team.nameForWeek(n), note:noteForWeek(n) };
 }
 
 function getPCN(team, today){
@@ -360,7 +358,7 @@ function cellHTML(kind, tagText, info){
 }
 
 function fullTableHTML(team, currentWeekNum){
-  const rows = buildFullSchedule(team);
+  const rows = buildFullSchedule(team, Math.max(PRINTED_WEEKS, currentWeekNum + 12));
   const trs = rows.map(r => `
     <tr class="${r.week===currentWeekNum ? 'current' : ''}">
       <td>${r.week}</td>
@@ -390,7 +388,7 @@ function renderTeams(){
         <div class="team-head">
           <span class="dot" style="color:var(${team.accentVar})"></span>
           <h2>${team.label}</h2>
-          <span class="region mono">Week ${current.week} / ${CYCLE_WEEKS}</span>
+          <span class="region mono">Week ${current.week}</span>
         </div>
         <div class="strip">
           ${cellHTML('side', 'Previous', prev)}
